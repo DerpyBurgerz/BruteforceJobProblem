@@ -3,7 +3,7 @@ using Time = Double;
 
 class Program
 {
-    void Main(string[] args)
+    static void Main(string[] args)
     {
         int n = int.Parse(Console.ReadLine());
         Time[] rj = new Time[n];
