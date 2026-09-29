@@ -1,28 +1,51 @@
 using System.Collections.Immutable;
+using System.Text;
 
 namespace BruteforceJobProblem;
 using Time = Double;
 
 class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
 {
+    private ImmutableArray<OutputValue> bestSolution;
+    private Time bestTotalCompletionTime = Time.MaxValue;
     private int n = n;
     private Time[] rj = rj;
     private Time[] pj = pj;
     private Time[] aj = aj;
+    private int counter = 0;
 
     public void Solve() // Should return the solution, not sure what type it will be
     {
-        State state = new State(0, null, [.. new int[n]], [.. new Time[n]]);
+        State state = new State(
+            0, 
+            null, 
+            [.. new int[n]], 
+            [.. new Time[n]], 
+            [.. new bool[n]], 
+            [],
+            0
+            );
         RecursiveThing(state);
+
+        foreach (var outputValue in bestSolution)
+        {
+            Console.WriteLine($"{outputValue.Job + 1}, {outputValue.StartTime}, {outputValue.TimeSpent}");
+        }
+        Console.WriteLine(bestTotalCompletionTime);
     }
 
     public void RecursiveThing(State state)
     {
+        counter++;
+        
+        #if DEBUG
         Console.WriteLine(state);
+        Console.WriteLine(counter);
+        #endif
+
         // if not doing a job
         if (!state.Job.HasValue)
         {
-            // how to not do this with ugly rename shit... 
             Time? nextInterrupt = FindNextInterruption(state.CurrentTime);
             if (nextInterrupt is { } nextIntteruptNotNull)
             {
@@ -31,7 +54,8 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
                 // Extremely slow, but works for small test cases
                 foreach (var (_, jobToDo) in 
                          rj .Select((t, index) => (t, index ))
-                             .Where(t => t.t == nextIntteruptNotNull))
+                             .Where(t => t.t <= nextIntteruptNotNull &&
+                            !state.FinishedJobs[t.index]))
                 {
                     // Create states where all different possible starting jobs at the next time are worked on.
                     RecursiveThing(state with {CurrentTime = nextIntteruptNotNull,  Job = jobToDo});
@@ -39,9 +63,15 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
             }
             else
             {
+                
                 // Can't find the next interruption, this state will keep doing nothing until the end??
                 // Return some values
                 // If haven't done everything yet, return a null or something
+                if (state.FinishedJobs.All(x => x) && state.TotalCompletionTime < bestTotalCompletionTime)
+                {
+                    bestTotalCompletionTime = state.TotalCompletionTime;
+                    bestSolution = state.Solution;
+                }
                 return;
             }
         }
@@ -50,7 +80,7 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
         if (state.Job.HasValue)
         {
             int job = state.Job.Value;
-            Time timeThisJobDone = (pj[job] /* add the penalty values here */ - state.TimeSpentPerJob[job]) + state.CurrentTime;
+            Time timeThisJobDone = (pj[job] * Math.Pow(aj[job], state.Interruptions[job]) - state.TimeSpentPerJob[job]) + state.CurrentTime;
             // Find a job that could interrupt this job from completely finishing
             Time? nextInterrupt = FindNextInterruption(state.CurrentTime, timeThisJobDone);
             
@@ -61,42 +91,75 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
                 ImmutableArray<Time> timeSpentPerJob = state.TimeSpentPerJob.SetItem(job, state.TimeSpentPerJob[job] + timeStep);
                 ImmutableArray<int> interruptions = state.Interruptions.SetItem(job, state.Interruptions[job] + 1);
 
-                State doNothingState = new State(
-                    Job: null, 
-                    CurrentTime: nextTime, 
-                    Interruptions: interruptions, 
-                    TimeSpentPerJob: timeSpentPerJob
-                    );
-                
+                State doNothingState = state with 
+                {Job= null, CurrentTime= nextTime, Interruptions= interruptions,
+                    TimeSpentPerJob= timeSpentPerJob, FinishedJobs= state.FinishedJobs, 
+                    Solution= [ .. state.Solution, new OutputValue(
+                    state.Job.Value,
+                    state.CurrentTime,
+                    timeStep
+                )]};
                 foreach (var (_, jobToDo) in 
-                         rj .Select((t, index) => (t, index ))
-                             .Where(t => t.t == nextTime))
+                         rj .Select((t, jobIndex) => (t, jobIndex ))
+                             .Where((t, jobIndex) => t.t <= nextTime &&
+                                         !state.FinishedJobs[jobIndex]))
                 {
-                    
                     // Create states where all different possible starting jobs at the next time are worked on.
                     
-                    RecursiveThing(new State(
-                            Job: jobToDo, 
-                            CurrentTime: nextTime, 
-                            Interruptions: interruptions, 
-                            TimeSpentPerJob: timeSpentPerJob
-                        )
+                    RecursiveThing(state with {
+                            Job= jobToDo, 
+                            CurrentTime= nextTime, 
+                            Interruptions= interruptions, 
+                            TimeSpentPerJob= timeSpentPerJob,
+                            FinishedJobs= state.FinishedJobs,
+                            Solution= [ .. state.Solution, new OutputValue(
+                                state.Job.Value,
+                                state.CurrentTime,
+                                timeStep)]
+                             }
                         );
                 }
                 
             }
             
             // If there are no interruptions, finish the current job
+            // Create a state where no jobs are worked on, and create new states for the different states to work on
             else
             {
+                Time timeStep = timeThisJobDone - state.CurrentTime;
+                OutputValue outputValue = new OutputValue(
+                    state.Job.Value,
+                    state.CurrentTime,
+                    timeStep
+                );
                 State nextState = state with
                 {
                     CurrentTime = timeThisJobDone,
                     Job = null,
                     // Not sure if floating point values are going to make this go bad
-                    TimeSpentPerJob = state.TimeSpentPerJob.SetItem(job, timeThisJobDone - state.CurrentTime)
+                    TimeSpentPerJob = state.TimeSpentPerJob.SetItem(job, timeThisJobDone - state.CurrentTime),
+                    FinishedJobs = state.FinishedJobs.SetItem(job, true),
+                    Solution = [ .. state.Solution, outputValue],
+                    TotalCompletionTime = state.TotalCompletionTime + timeThisJobDone
                 };
                 RecursiveThing(nextState);
+                
+                foreach (var (_, jobToDo) in 
+                         rj .Select((t, jobIndex) => (t, jobIndex ))
+                             .Where((t, jobIndex) => t.t <= timeThisJobDone &&
+                                                     !state.FinishedJobs[jobIndex]))
+                {
+                    // Create states where all different possible starting jobs at the next time are worked on.
+                    RecursiveThing(state with
+                    {
+                        Job = jobToDo,
+                        CurrentTime = timeThisJobDone,
+                        TimeSpentPerJob = state.TimeSpentPerJob.SetItem(job, timeThisJobDone - state.CurrentTime),
+                        FinishedJobs = state.FinishedJobs.SetItem(job, true),
+                        Solution = [ .. state.Solution, outputValue],
+                        TotalCompletionTime = state.TotalCompletionTime + timeThisJobDone
+                    });
+                }
             }
             
         }
@@ -118,25 +181,47 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
 
         foreach (var releaseTime in rj)
         {
-            if (releaseTime < nextInterruption && currentTime > releaseTime)
+            if (releaseTime < nextInterruption && currentTime < releaseTime)
             {
                 nextInterruption = releaseTime;
             }
         }
         
-        return Math.Abs(nextInterruption - Time.MaxValue) < 0.1 ? null : nextInterruption;
+        return Math.Abs(nextInterruption - beforeThisTime) < 0.001 ? null : nextInterruption;
     }
 }
 
-/// <summary>
-/// 
-/// </summary>
-readonly record struct State(Time CurrentTime, int? Job, ImmutableArray<int> Interruptions, ImmutableArray<Time> TimeSpentPerJob)
+readonly record struct State(
+    Time CurrentTime,
+    int? Job,
+    ImmutableArray<int> Interruptions,
+    ImmutableArray<Time> TimeSpentPerJob,
+    ImmutableArray<bool> FinishedJobs,
+    ImmutableArray<OutputValue> Solution,
+    Time TotalCompletionTime)
 {
-    // public Time CurrentTime { get; init; }
-    // // The job that is currently being worked on. Could be null
-    // public int? Job { get; init; }
-    //
-    // public ImmutableArray<Time> Interruptions { get; init; }
-    // public ImmutableArray<Time> TimeSpentPerJob { get; init; }
+    /// <summary>
+    /// Saw this online, it's a nicer way to print the member variable of record structs.
+    /// I think it's some sort of ovveride/hook, but it doesn't override anything?
+    /// </summary>
+    /// <param name="builder"></param>
+    /// <returns></returns>
+    private bool PrintMembers(StringBuilder builder)
+    {
+        builder.Append($"CurrentTime = {CurrentTime}, ");
+        builder.Append($"Job = {Job?.ToString() ?? "null"}, ");
+        builder.Append($"Interruptions = [{string.Join(", ", Interruptions)}], ");
+        builder.Append($"TimeSpentPerJob = [{string.Join(", ", TimeSpentPerJob)}]");
+        builder.Append($"FinishedJobs = [{string.Join(", ", FinishedJobs)}]");
+        builder.Append($"Solution = [{string.Join(", ", Solution)}]");
+        return true;
+    }
+}
+
+record struct OutputValue(
+    int Job,
+    Time StartTime,
+    Time TimeSpent
+    )
+{
 }

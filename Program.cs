@@ -11,7 +11,7 @@ class Program
         Time[] aj = new Time[n];
         for (int i = 0; i < n; i++)
         {
-            Time[] line = Console.ReadLine().Split(' ').Select(x => Time.Parse(x)).ToArray();
+            Time[] line = Console.ReadLine().Split(", ").Select(x => Time.Parse(x)).ToArray();
             rj[i] = line[0];
             pj[i] = line[1];
             aj[i] = line[2];
