@@ -17,7 +17,7 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
     public void Solve() // Should return the solution, not sure what type it will be
     {
         State state = new State(
-            0, 
+            -1, 
             null, 
             [.. new int[n]], 
             [.. new Time[n]], 
@@ -37,6 +37,16 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
     public void RecursiveThing(State state)
     {
         counter++;
+        if (state.FinishedJobs.All(x => x) && state.TotalCompletionTime < bestTotalCompletionTime)
+        {
+            bestTotalCompletionTime = state.TotalCompletionTime;
+            bestSolution = state.Solution;
+        }
+
+        if (state.Job is 1 && Math.Abs(state.CurrentTime - 3.0) < 0.01 && state.FinishedJobs.Count(x => x) == 1)
+        {
+            //
+        }
         
         #if DEBUG
         Console.WriteLine(state);
@@ -47,31 +57,24 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
         if (!state.Job.HasValue)
         {
             Time? nextInterrupt = FindNextInterruption(state.CurrentTime);
-            if (nextInterrupt is { } nextIntteruptNotNull)
+            if (nextInterrupt is { } nextTime)
             {
-                State still_not_doing_anything = state with { CurrentTime = nextIntteruptNotNull };
-                RecursiveThing(still_not_doing_anything);
-                // Extremely slow, but works for small test cases
+                RecursiveThing(state with {CurrentTime = nextTime});
+                // Get all jobs that have not been finished and can be started on at the next time
                 foreach (var (_, jobToDo) in 
                          rj .Select((t, index) => (t, index ))
-                             .Where(t => t.t <= nextIntteruptNotNull &&
+                             .Where(t => t.t <= nextTime &&
                             !state.FinishedJobs[t.index]))
                 {
                     // Create states where all different possible starting jobs at the next time are worked on.
-                    RecursiveThing(state with {CurrentTime = nextIntteruptNotNull,  Job = jobToDo});
+                    RecursiveThing(state with {CurrentTime = nextTime,  Job = jobToDo});
                 }
             }
             else
             {
-                
                 // Can't find the next interruption, this state will keep doing nothing until the end??
                 // Return some values
                 // If haven't done everything yet, return a null or something
-                if (state.FinishedJobs.All(x => x) && state.TotalCompletionTime < bestTotalCompletionTime)
-                {
-                    bestTotalCompletionTime = state.TotalCompletionTime;
-                    bestSolution = state.Solution;
-                }
                 return;
             }
         }
@@ -109,8 +112,8 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
                     RecursiveThing(state with {
                             Job= jobToDo, 
                             CurrentTime= nextTime, 
-                            Interruptions= interruptions, 
-                            TimeSpentPerJob= timeSpentPerJob,
+                            Interruptions= interruptions.SetItem(job, interruptions[job] + 1),
+                            TimeSpentPerJob= timeSpentPerJob.SetItem(job, timeSpentPerJob[job] + timeStep),
                             FinishedJobs= state.FinishedJobs,
                             Solution= [ .. state.Solution, new OutputValue(
                                 state.Job.Value,
@@ -119,6 +122,18 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
                              }
                         );
                 }
+                // We also need to create a state where we continue working on a job
+                RecursiveThing(state with
+                {
+                    CurrentTime= nextTime, 
+                    Interruptions= interruptions, 
+                    TimeSpentPerJob= timeSpentPerJob.SetItem(job, timeSpentPerJob[job] + timeStep),
+                    FinishedJobs= state.FinishedJobs,
+                    Solution= [ .. state.Solution, new OutputValue(
+                        state.Job.Value,
+                        state.CurrentTime,
+                        timeStep)]
+                });
                 
             }
             
@@ -137,7 +152,7 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
                     CurrentTime = timeThisJobDone,
                     Job = null,
                     // Not sure if floating point values are going to make this go bad
-                    TimeSpentPerJob = state.TimeSpentPerJob.SetItem(job, timeThisJobDone - state.CurrentTime),
+                    TimeSpentPerJob = state.TimeSpentPerJob.SetItem(job, state.TimeSpentPerJob[job] + timeStep),
                     FinishedJobs = state.FinishedJobs.SetItem(job, true),
                     Solution = [ .. state.Solution, outputValue],
                     TotalCompletionTime = state.TotalCompletionTime + timeThisJobDone
@@ -154,7 +169,7 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
                     {
                         Job = jobToDo,
                         CurrentTime = timeThisJobDone,
-                        TimeSpentPerJob = state.TimeSpentPerJob.SetItem(job, timeThisJobDone - state.CurrentTime),
+                        TimeSpentPerJob = state.TimeSpentPerJob.SetItem(job, state.TimeSpentPerJob[job] + timeStep),
                         FinishedJobs = state.FinishedJobs.SetItem(job, true),
                         Solution = [ .. state.Solution, outputValue],
                         TotalCompletionTime = state.TotalCompletionTime + timeThisJobDone
