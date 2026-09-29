@@ -27,7 +27,26 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
             );
         RecursiveThing(state);
 
-        foreach (var outputValue in bestSolution)
+
+        List<OutputValue> cleanedUpSolution = [bestSolution.First()];
+
+        foreach (var outputValue in bestSolution.Skip(1))
+        {
+            if (outputValue.Job == cleanedUpSolution.Last().Job)
+            {
+                int i = cleanedUpSolution.Count - 1; 
+                cleanedUpSolution[i] = cleanedUpSolution[i] with
+                {
+                    TimeSpent = cleanedUpSolution[i].TimeSpent +  outputValue.TimeSpent
+                };
+            }
+            else
+            {
+                cleanedUpSolution.Add(outputValue);
+            }
+        }
+            
+        foreach (var outputValue in cleanedUpSolution)
         {
             Console.WriteLine($"{outputValue.Job + 1}, {outputValue.StartTime}, {outputValue.TimeSpent}");
         }
@@ -49,7 +68,7 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
         }
         
         #if DEBUG
-        Console.WriteLine(state);
+        // Console.WriteLine(state);
         Console.WriteLine(counter);
         #endif
 
@@ -90,18 +109,19 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
             // If there is a possible interruption
             if (nextInterrupt is { } nextTime)
             {
+                
                 Time timeStep = nextTime - state.CurrentTime;
                 ImmutableArray<Time> timeSpentPerJob = state.TimeSpentPerJob.SetItem(job, state.TimeSpentPerJob[job] + timeStep);
                 ImmutableArray<int> interruptions = state.Interruptions.SetItem(job, state.Interruptions[job] + 1);
 
-                State doNothingState = state with 
-                {Job= null, CurrentTime= nextTime, Interruptions= interruptions,
-                    TimeSpentPerJob= timeSpentPerJob, FinishedJobs= state.FinishedJobs, 
-                    Solution= [ .. state.Solution, new OutputValue(
-                    state.Job.Value,
-                    state.CurrentTime,
-                    timeStep
-                )]};
+                // Do nothing at the next time
+                RecursiveThing(state with
+                {
+                    Job = null,
+                    CurrentTime = nextTime,
+                    TimeSpentPerJob= timeSpentPerJob,
+                    Interruptions = interruptions
+                });
                 foreach (var (_, jobToDo) in 
                          rj .Select((t, jobIndex) => (t, jobIndex ))
                              .Where((t, jobIndex) => t.t <= nextTime &&
@@ -112,9 +132,8 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
                     RecursiveThing(state with {
                             Job= jobToDo, 
                             CurrentTime= nextTime, 
-                            Interruptions= interruptions.SetItem(job, interruptions[job] + 1),
-                            TimeSpentPerJob= timeSpentPerJob.SetItem(job, timeSpentPerJob[job] + timeStep),
-                            FinishedJobs= state.FinishedJobs,
+                            Interruptions= interruptions,
+                            TimeSpentPerJob= timeSpentPerJob,
                             Solution= [ .. state.Solution, new OutputValue(
                                 state.Job.Value,
                                 state.CurrentTime,
@@ -126,8 +145,7 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
                 RecursiveThing(state with
                 {
                     CurrentTime= nextTime, 
-                    Interruptions= interruptions, 
-                    TimeSpentPerJob= timeSpentPerJob.SetItem(job, timeSpentPerJob[job] + timeStep),
+                    TimeSpentPerJob= timeSpentPerJob,
                     FinishedJobs= state.FinishedJobs,
                     Solution= [ .. state.Solution, new OutputValue(
                         state.Job.Value,
@@ -142,6 +160,10 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
             else
             {
                 Time timeStep = timeThisJobDone - state.CurrentTime;
+                if (timeStep < 0)
+                {
+                    
+                }
                 OutputValue outputValue = new OutputValue(
                     state.Job.Value,
                     state.CurrentTime,
