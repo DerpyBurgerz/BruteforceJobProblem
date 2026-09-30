@@ -12,7 +12,9 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
     private Time[] rj = rj;
     private Time[] pj = pj;
     private Time[] aj = aj;
+    #if DEBUG
     private int counter = 0;
+    #endif
 
     public void Solve() // Should return the solution, not sure what type it will be
     {
@@ -55,7 +57,9 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
 
     public void RecursiveThing(State state)
     {
+        #if DEBUG
         counter++;
+        #endif
         if (state.FinishedJobs.All(x => x) && state.TotalCompletionTime < bestTotalCompletionTime)
         {
             bestTotalCompletionTime = state.TotalCompletionTime;
