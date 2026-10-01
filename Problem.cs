@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 using System.Text;
 
 namespace BruteforceJobProblem;
-using Time = Double;
+using Time = double;
 
 class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
 {
@@ -64,11 +64,6 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
         {
             bestTotalCompletionTime = state.TotalCompletionTime;
             bestSolution = state.Solution;
-        }
-
-        if (state.Job is 1 && Math.Abs(state.CurrentTime - 3.0) < 0.01 && state.FinishedJobs.Count(x => x) == 1)
-        {
-            //
         }
         
         #if DEBUG
