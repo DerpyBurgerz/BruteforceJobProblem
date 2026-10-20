@@ -60,6 +60,12 @@ class Problem(int n, Time[] rj, Time[] pj, Time[] aj)
         #if DEBUG
         counter++;
         #endif
+        if (bestTotalCompletionTime < state.TotalCompletionTime)
+        {
+            // can't find something better if the total completion time is already slower than the best found solution
+            // Already cuts down the total states evaluated by around 75%, we can probably find a better heuristic by running the python program first
+            return;
+        }
         if (state.FinishedJobs.All(x => x) && state.TotalCompletionTime < bestTotalCompletionTime)
         {
             bestTotalCompletionTime = state.TotalCompletionTime;
